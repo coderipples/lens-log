@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+._*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Node (tests only; no dependencies expected)
+node_modules/
+npm-debug.log*
+
+# Local exports / scratch
+lenslog-export-*.json
+*.local.*
