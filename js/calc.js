@@ -117,6 +117,34 @@ export function lensSummary(lens, switches, today) {
 }
 
 // ---------------------------------------------------------------------------
+// Activities
+// ---------------------------------------------------------------------------
+
+/** Kinds logged on `date`, in the order they were logged. */
+export function activitiesOn(activities, date) {
+  return [...new Set(activities.filter((a) => a.date === date).map((a) => a.kind))];
+}
+
+/**
+ * Activities on the days the lens was worn (rest days don't count):
+ * [{ kind, days }], most days first, then by name.
+ */
+export function lensActivities(lens, switches, activities, today) {
+  if (!activities.length) return [];
+  const days = lensDays(lens, switches, today);
+  const byKind = new Map();
+  for (const a of activities) {
+    const k = diffDays(lens.openedOn, a.date);
+    if (k < 0 || k >= days.length || days[k] !== "worn") continue;
+    if (!byKind.has(a.kind)) byKind.set(a.kind, new Set());
+    byKind.get(a.kind).add(a.date);
+  }
+  return [...byKind]
+    .map(([kind, dates]) => ({ kind, days: dates.size }))
+    .sort((a, b) => b.days - a.days || a.kind.localeCompare(b.kind));
+}
+
+// ---------------------------------------------------------------------------
 // Stats
 // ---------------------------------------------------------------------------
 

@@ -1,7 +1,7 @@
-// Settings: brands and defaults, export and import.
+// Settings: brands and defaults, activity kinds, export and import.
 
 import * as store from "../store.js";
-import { addBrand, removeBrand, setDefaultBrand } from "../actions.js";
+import { addBrand, removeBrand, setDefaultBrand, addActivityKind, removeActivityKind } from "../actions.js";
 import { todayISO } from "../dates.js";
 import { showToast, showError } from "./toast.js";
 import { esc, ICONS, plural, TYPE_NAMES } from "./dom.js";
@@ -9,6 +9,7 @@ import { esc, ICONS, plural, TYPE_NAMES } from "./dom.js";
 export function renderSettings(el, state) {
   el.innerHTML = `
     ${["monthly", "daily"].map((type) => brandSection(state, type)).join("")}
+    ${activitySection(state)}
 
     <h2 class="section-title">Data</h2>
     <div class="card settings-data">
@@ -35,6 +36,10 @@ export function renderSettings(el, state) {
         } else if (act === "remove") {
           const { undo } = store.update((d) => removeBrand(d, type, brand));
           showToast(`Removed ${brand}`, { undo });
+        } else if (act === "remove-activity") {
+          const { kind } = t.dataset;
+          const { undo } = store.update((d) => removeActivityKind(d, kind));
+          showToast(`Removed ${kind}`, { undo });
         }
       } catch (err) { showError(err); }
       return;
@@ -50,6 +55,13 @@ export function renderSettings(el, state) {
       } catch (err) { showError(err); }
     };
   }
+
+  el.querySelector("[data-add-activity]").onsubmit = (e) => {
+    e.preventDefault();
+    try {
+      store.update((d) => addActivityKind(d, e.target.kind.value));
+    } catch (err) { showError(err); }
+  };
 
   el.querySelector("[data-import]").onchange = async (e) => {
     const file = e.target.files?.[0];
@@ -78,6 +90,25 @@ function brandSection(state, type) {
         <input class="input" name="brand" placeholder="Add ${type} brand" autocomplete="off" autocapitalize="words" enterkeyhint="done">
         <button class="btn" type="submit">Add</button>
       </form>
+    </div>`;
+}
+
+function activitySection(state) {
+  return `
+    <h2 class="section-title">Activities</h2>
+    <div class="card list-card">
+      ${state.activityKinds.length ? `<ul class="brand-list">
+        ${state.activityKinds.map((k) => `
+          <li class="brand-row">
+            <span class="brand-name">${esc(k)}</span>
+            <button type="button" class="icon-btn" data-act="remove-activity" data-kind="${esc(k)}" aria-label="Remove ${esc(k)}">${ICONS.close}</button>
+          </li>`).join("")}
+      </ul>` : ""}
+      <form class="inline-form" data-add-activity>
+        <input class="input" name="kind" placeholder="Add activity" autocomplete="off" autocapitalize="sentences" enterkeyhint="done">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <p class="note muted">Removing an activity only hides it from the picker. Days already logged keep it.</p>
     </div>`;
 }
 

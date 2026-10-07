@@ -5,9 +5,13 @@ import { todayISO, isValidISO, addDays, diffDays } from "../js/dates.js";
 import {
   calendarAge, lensDays, lensSummary, toRuns, eyeStatus,
   median, summarize, monthlyStats, lifespanRows, reasonCounts,
+  activitiesOn, lensActivities,
 } from "../js/calc.js";
-import { openLens, switchTo, discardLens, editLens, deleteLens, addBrand } from "../js/actions.js";
-import { seedState, migrate, validate } from "../js/store.js";
+import {
+  openLens, switchTo, discardLens, editLens, deleteLens, addBrand,
+  toggleActivity, addActivityKind, removeActivityKind,
+} from "../js/actions.js";
+import { seedState, migrate, validate, DEFAULT_ACTIVITY_KINDS } from "../js/store.js";
 
 // ---------------------------------------------------------------------------
 // dates.js
@@ -245,7 +249,7 @@ test("empty stats are null", () => {
 
 test("migrate fills defaults, keeps data, and rejects newer versions", () => {
   const m = migrate({ lenses: [], switches: [{ id: "a", date: "2026-09-01", eye: "L", lensId: null }] });
-  assert.equal(m.version, 1);
+  assert.equal(m.version, 2);
   assert.deepEqual(m.brands.monthly, ["Total30"]);
   assert.equal(m.switches[0].seq, 1);
   assert.equal(m.nextSeq, 2);
@@ -253,12 +257,39 @@ test("migrate fills defaults, keeps data, and rejects newer versions", () => {
   assert.throws(() => migrate("nope"), /Not a Lens Log/);
 });
 
+test("migrating v1 data keeps every lens and switch and adds an empty activity log", () => {
+  const { s } = scenario();
+  const v1 = structuredClone(s);
+  v1.version = 1;
+  delete v1.activities;
+  delete v1.activityKinds;
+  const m = migrate(v1);
+  assert.equal(m.version, 2);
+  assert.deepEqual(m.lenses, s.lenses);
+  assert.deepEqual(m.switches, s.switches);
+  assert.deepEqual(m.brands, s.brands);
+  assert.deepEqual(m.activities, []);
+  assert.deepEqual(m.activityKinds, DEFAULT_ACTIVITY_KINDS);
+});
+
+test("v2 activities and kinds survive a save/load round trip", () => {
+  const s = seedState();
+  toggleActivity(s, { date: "2026-09-02", kind: "Swimming" });
+  removeActivityKind(s, "Sauna");
+  const m = migrate(JSON.parse(JSON.stringify(s)));
+  assert.deepEqual(m.activities, s.activities);
+  assert.ok(!m.activityKinds.includes("Sauna"));
+  s.activityKinds = [];
+  assert.deepEqual(migrate(s).activityKinds, []);
+});
+
 test("validate catches broken references and dates", () => {
   const { s } = scenario();
   assert.deepEqual(validate(s), []);
   const bad = structuredClone(s);
   bad.switches.push({ id: "x", date: "2026-13-01", eye: "L", lensId: "missing", seq: 99 });
-  assert.equal(validate(bad).length, 2);
+  bad.activities.push({ id: "y", date: "2026-09-31", kind: " " });
+  assert.equal(validate(bad).length, 4);
 });
 
 test("addBrand dedupes case-insensitively", () => {
@@ -266,4 +297,61 @@ test("addBrand dedupes case-insensitively", () => {
   assert.equal(addBrand(s, "monthly", "  total30 "), "Total30");
   assert.equal(addBrand(s, "monthly", "Acuvue  Oasys"), "Acuvue Oasys");
   assert.deepEqual(s.brands.monthly, ["Total30", "Acuvue Oasys"]);
+});
+
+// ---------------------------------------------------------------------------
+// Activities
+// ---------------------------------------------------------------------------
+
+test("toggleActivity logs once per kind per day and toggles off", () => {
+  const s = seedState();
+  assert.deepEqual(toggleActivity(s, { date: "2026-09-02", kind: "Swimming" }), { logged: true });
+  toggleActivity(s, { date: "2026-09-02", kind: "Climbing" });
+  assert.deepEqual(activitiesOn(s.activities, "2026-09-02"), ["Swimming", "Climbing"]);
+  assert.deepEqual(toggleActivity(s, { date: "2026-09-02", kind: "Swimming" }), { logged: false });
+  assert.deepEqual(activitiesOn(s.activities, "2026-09-02"), ["Climbing"]);
+  assert.throws(() => toggleActivity(s, { date: "2026-02-30", kind: "Swimming" }), /valid date/);
+  assert.throws(() => toggleActivity(s, { date: "2026-09-02", kind: "" }), /Choose/);
+});
+
+test("activities count only on days the lens was worn", () => {
+  // Left: monthly worn Sep 1–9 and from Sep 13, daily worn Sep 10–12 (discarded Sep 12).
+  const { s, monthly, daily } = scenario();
+  for (const date of ["2026-08-31", "2026-09-02", "2026-09-05", "2026-09-11", "2026-09-14"]) {
+    toggleActivity(s, { date, kind: "Swimming" });
+  }
+  toggleActivity(s, { date: "2026-09-05", kind: "Climbing" });
+  const today = "2026-09-20";
+  assert.deepEqual(lensActivities(monthly, s.switches, s.activities, today), [
+    { kind: "Swimming", days: 3 },
+    { kind: "Climbing", days: 1 },
+  ]);
+  assert.deepEqual(lensActivities(daily, s.switches, s.activities, today), [{ kind: "Swimming", days: 1 }]);
+
+  // A day with no lens in doesn't count.
+  switchTo(s, { eye: "L", lensId: null, date: "2026-09-16" });
+  toggleActivity(s, { date: "2026-09-17", kind: "Swimming" });
+  assert.equal(lensActivities(monthly, s.switches, s.activities, today)[0].days, 3);
+});
+
+test("activities apply to both eyes and can be logged retroactively", () => {
+  const s = seedState();
+  const { lens: left } = openLens(s, { eye: "L", type: "monthly", brand: "Total30", date: "2026-09-01" });
+  const { lens: right } = openLens(s, { eye: "R", type: "monthly", brand: "Total30", date: "2026-09-04" });
+  toggleActivity(s, { date: "2026-09-02", kind: "Sauna" }); // logged later, dated in the past
+  toggleActivity(s, { date: "2026-09-05", kind: "Sauna" });
+  const today = "2026-09-10";
+  assert.deepEqual(lensActivities(left, s.switches, s.activities, today), [{ kind: "Sauna", days: 2 }]);
+  assert.deepEqual(lensActivities(right, s.switches, s.activities, today), [{ kind: "Sauna", days: 1 }]);
+});
+
+test("activity kinds dedupe, and removing a kind keeps what was logged", () => {
+  const s = seedState();
+  assert.equal(addActivityKind(s, " swimming "), "Swimming");
+  assert.equal(addActivityKind(s, "Hot  yoga"), "Hot yoga");
+  assert.equal(s.activityKinds.at(-1), "Hot yoga");
+  toggleActivity(s, { date: "2026-09-02", kind: "Hot yoga" });
+  removeActivityKind(s, "Hot yoga");
+  assert.ok(!s.activityKinds.includes("Hot yoga"));
+  assert.equal(s.activities.length, 1);
 });

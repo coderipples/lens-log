@@ -146,14 +146,19 @@ export function deleteLens(state, id) {
 // Brands
 // ---------------------------------------------------------------------------
 
+/** Add a name to a list (trimmed, case-insensitive dedupe). Returns the stored name. */
+function addName(list, name, what) {
+  const clean = (name ?? "").trim().replace(/\s+/g, " ");
+  if (!clean) throw new Error(`${what} can't be empty`);
+  const existing = list.find((b) => b.toLowerCase() === clean.toLowerCase());
+  if (existing) return existing;
+  list.push(clean);
+  return clean;
+}
+
 /** Add a brand (case-insensitive dedupe). Returns the stored name. */
 export function addBrand(state, type, name) {
-  const clean = (name ?? "").trim().replace(/\s+/g, " ");
-  if (!clean) throw new Error("Brand name can't be empty");
-  const existing = state.brands[type].find((b) => b.toLowerCase() === clean.toLowerCase());
-  if (existing) return existing;
-  state.brands[type].push(clean);
-  return clean;
+  return addName(state.brands[type], name, "Brand name");
 }
 
 export function removeBrand(state, type, name) {
@@ -164,4 +169,29 @@ export function removeBrand(state, type, name) {
 export function setDefaultBrand(state, type, name) {
   if (!state.brands[type].includes(name)) throw new Error("Unknown brand");
   state.defaults[type] = name;
+}
+
+// ---------------------------------------------------------------------------
+// Activities (both eyes, by date; linked to lenses through the switches)
+// ---------------------------------------------------------------------------
+
+/** Log `kind` on `date`, or remove it if already logged that day. Returns { logged }. */
+export function toggleActivity(state, { date, kind }) {
+  assertDate(date);
+  if (!kind?.trim()) throw new Error("Choose an activity");
+  const before = state.activities.length;
+  state.activities = state.activities.filter((a) => !(a.date === date && a.kind === kind));
+  if (state.activities.length < before) return { logged: false };
+  state.activities.push({ id: makeId(), date, kind });
+  return { logged: true };
+}
+
+/** Add an activity kind (case-insensitive dedupe). Returns the stored name. */
+export function addActivityKind(state, name) {
+  return addName(state.activityKinds, name, "Activity name");
+}
+
+/** Remove a kind from the picker. Activities already logged with it are kept. */
+export function removeActivityKind(state, name) {
+  state.activityKinds = state.activityKinds.filter((k) => k !== name);
 }

@@ -1,7 +1,7 @@
 // History screen: every lens, newest first. Tap to edit or delete.
 
 import * as store from "../store.js";
-import { lensSummary, reasonLabel, comfortLabel, REASONS, COMFORT_LABELS } from "../calc.js";
+import { lensSummary, lensActivities, reasonLabel, comfortLabel, REASONS, COMFORT_LABELS } from "../calc.js";
 import { formatShort, todayISO } from "../dates.js";
 import { editLens, deleteLens } from "../actions.js";
 import { openSheet } from "./sheet.js";
@@ -32,6 +32,8 @@ function historyItem(lens, state, today) {
   const reason = reasonLabel(lens.discardReason);
   const comfort = comfortLabel(lens.comfort);
   const extras = [reason, comfort && `Comfort: ${comfort}`].filter(Boolean);
+  const activities = lensActivities(lens, state.switches, state.activities, today)
+    .map((a) => `${a.kind} ×${a.days}`);
   return `<li>
     <button type="button" class="history-item" data-lens="${esc(lens.id)}">
       <div class="history-top">
@@ -43,6 +45,7 @@ function historyItem(lens, state, today) {
       <div class="history-line num">${esc(formatShort(lens.openedOn, today))} – ${esc(end)} · ${plural(s.age, "day")}</div>
       <div class="history-line muted num">${s.worn} worn · ${s.rest} rest${s.isOver ? ` · <span class="text-over">${s.over} over</span>` : ""}</div>
       ${extras.length ? `<div class="history-line muted">${esc(extras.join(" · "))}</div>` : ""}
+      ${activities.length ? `<div class="history-line muted num">${esc(activities.join(" · "))}</div>` : ""}
       ${lens.note ? `<div class="history-note">${esc(lens.note)}</div>` : ""}
     </button>
   </li>`;

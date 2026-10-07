@@ -1,7 +1,7 @@
 // Network-first cache so the app opens offline but always gets fresh files when online.
 // When adding a file, list it in ASSETS and bump VERSION.
 
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = `lenslog-${VERSION}`;
 const ASSETS = [
   "./",
@@ -18,6 +18,7 @@ const ASSETS = [
   "js/ui/sheet.js",
   "js/ui/now.js",
   "js/ui/now-sheet.js",
+  "js/ui/activity-sheet.js",
   "js/ui/stats.js",
   "js/ui/history.js",
   "js/ui/settings.js",

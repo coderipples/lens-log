@@ -304,6 +304,8 @@ h1, h2, h3, p { margin: 0; }
   color: var(--text);
 }
 .chip.is-daily[aria-pressed="true"] { background: var(--daily-soft); border-color: var(--daily); }
+/* Activities are neither type, so they get a neutral selected state. */
+.chip.is-activity[aria-pressed="true"] { background: var(--surface-3); border-color: var(--text-dim); }
 
 .field { display: flex; flex-direction: column; gap: var(--space-2); }
 .field-label { font-size: var(--fs-sm); color: var(--text-dim); font-weight: var(--fw-medium); }
@@ -436,6 +438,9 @@ input[type="date"].input { display: block; }
   text-align: left;
 }
 .eye-resting.is-over { color: var(--over); }
+
+.activity-row { background: var(--surface); border-radius: var(--radius-lg); }
+.activity-row:active { background: var(--surface-2); }
 
 /* ============================================================
    Bottom sheet

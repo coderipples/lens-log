@@ -3,7 +3,9 @@
 import { isValidISO } from "./dates.js";
 
 export const STORAGE_KEY = "lenslog.v1";
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
+
+export const DEFAULT_ACTIVITY_KINDS = ["Swimming", "Climbing", "Shower", "Sauna", "Screen-heavy", "Dusty / windy"];
 
 export function seedState() {
   return {
@@ -12,6 +14,8 @@ export function seedState() {
     switches: [],
     brands: { monthly: ["Total30"], daily: ["Total1"] },
     defaults: { monthly: "Total30", daily: "Total1" },
+    activities: [],
+    activityKinds: [...DEFAULT_ACTIVITY_KINDS],
     nextSeq: 1,
   };
 }
@@ -25,7 +29,12 @@ export function migrate(raw) {
   const s = structuredClone(raw);
   s.version ??= 1;
   if (s.version > SCHEMA_VERSION) throw new Error("This data is from a newer version of Lens Log");
-  // if (s.version === 1) { …transform…; s.version = 2; }
+  if (s.version === 1) {
+    // v2: activity log (both eyes, by date) and the list of activity kinds.
+    s.activities = [];
+    s.activityKinds = [...DEFAULT_ACTIVITY_KINDS];
+    s.version = 2;
+  }
   return normalize(s);
 }
 
@@ -41,6 +50,9 @@ function normalize(s) {
       daily: Array.isArray(s.brands?.daily) ? s.brands.daily : seed.brands.daily,
     },
     defaults: { ...seed.defaults, ...(s.defaults ?? {}) },
+    activities: Array.isArray(s.activities) ? s.activities : [],
+    // An empty list is a valid choice here, unlike brands.
+    activityKinds: Array.isArray(s.activityKinds) ? s.activityKinds : seed.activityKinds,
     nextSeq: 1,
   };
   for (const type of ["monthly", "daily"]) {
@@ -58,6 +70,7 @@ function normalize(s) {
     comfort: l.comfort ?? null,
     note: l.note ?? "",
   }));
+  out.activities = out.activities.map((a) => ({ id: a.id, date: a.date, kind: a.kind }));
   let maxSeq = 0;
   out.switches = out.switches.map((sw, i) => {
     const seq = Number.isFinite(sw.seq) ? sw.seq : i + 1;
@@ -88,6 +101,10 @@ export function validate(s) {
     if (!isValidISO(sw.date)) errors.push(`Switch ${sw.id ?? "?"}: invalid date`);
     if (sw.eye !== "L" && sw.eye !== "R") errors.push(`Switch ${sw.id ?? "?"}: eye must be L or R`);
     if (sw.lensId !== null && !ids.has(sw.lensId)) errors.push(`Switch ${sw.id ?? "?"}: unknown lens`);
+  }
+  for (const a of s.activities) {
+    if (!isValidISO(a.date)) errors.push(`Activity ${a.id ?? "?"}: invalid date`);
+    if (typeof a.kind !== "string" || !a.kind.trim()) errors.push(`Activity ${a.id ?? "?"}: missing kind`);
   }
   return errors;
 }

@@ -1,9 +1,10 @@
 // Now screen: one card per eye with a progress ring.
 
-import { eyeStatus, lensSummary } from "../calc.js";
+import { eyeStatus, lensSummary, activitiesOn } from "../calc.js";
 import { formatShort } from "../dates.js";
-import { esc, ring, plural, EYE_NAMES, TYPE_NAMES } from "./dom.js";
+import { esc, ring, plural, ICONS, EYE_NAMES, TYPE_NAMES } from "./dom.js";
 import { openNowSheet } from "./now-sheet.js";
+import { openActivitySheet } from "./activity-sheet.js";
 
 export function renderNow(el, state, today) {
   const hasAny = state.lenses.length > 0;
@@ -13,11 +14,25 @@ export function renderNow(el, state, today) {
       ${eyeCard(state, "R", today)}
     </div>
     ${hasAny ? "" : `<p class="hint">Tap an eye to open your first lens.</p>`}
+    ${activityRow(state, today)}
   `;
   el.onclick = (e) => {
     const card = e.target.closest("[data-eye]");
     if (card) openNowSheet(card.dataset.eye);
+    else if (e.target.closest("[data-activities]")) openActivitySheet();
   };
+}
+
+function activityRow(state, today) {
+  const kinds = activitiesOn(state.activities, today);
+  return `
+    <button type="button" class="action-row activity-row" data-activities>
+      <span class="action-text">
+        <span class="action-title">Activities today</span>
+        <span class="action-sub">${kinds.length ? esc(kinds.join(" · ")) : "Nothing logged · tap to add"}</span>
+      </span>
+      ${ICONS.chevron}
+    </button>`;
 }
 
 function eyeCard(state, eye, today) {
