@@ -5,11 +5,11 @@ import { todayISO, isValidISO, addDays, diffDays } from "../js/dates.js";
 import {
   calendarAge, lensDays, lensSummary, toRuns, eyeStatus,
   median, summarize, monthlyStats, lifespanRows, reasonCounts,
-  activitiesOn, lensActivities,
+  activitiesOn, lensActivities, noteOn, notesDuring,
 } from "../js/calc.js";
 import {
   openLens, switchTo, discardLens, editLens, deleteLens, addBrand,
-  toggleActivity, addActivityKind, removeActivityKind,
+  toggleActivity, addActivityKind, removeActivityKind, setDayNote,
 } from "../js/actions.js";
 import { seedState, migrate, validate, DEFAULT_ACTIVITY_KINDS } from "../js/store.js";
 
@@ -249,7 +249,7 @@ test("empty stats are null", () => {
 
 test("migrate fills defaults, keeps data, and rejects newer versions", () => {
   const m = migrate({ lenses: [], switches: [{ id: "a", date: "2026-09-01", eye: "L", lensId: null }] });
-  assert.equal(m.version, 2);
+  assert.equal(m.version, 3);
   assert.deepEqual(m.brands.monthly, ["Total30"]);
   assert.equal(m.switches[0].seq, 1);
   assert.equal(m.nextSeq, 2);
@@ -257,27 +257,44 @@ test("migrate fills defaults, keeps data, and rejects newer versions", () => {
   assert.throws(() => migrate("nope"), /Not a Lens Log/);
 });
 
-test("migrating v1 data keeps every lens and switch and adds an empty activity log", () => {
+test("migrating v1 data keeps every lens and switch and adds empty activities and notes", () => {
   const { s } = scenario();
   const v1 = structuredClone(s);
   v1.version = 1;
   delete v1.activities;
   delete v1.activityKinds;
+  delete v1.dayNotes;
   const m = migrate(v1);
-  assert.equal(m.version, 2);
+  assert.equal(m.version, 3);
   assert.deepEqual(m.lenses, s.lenses);
   assert.deepEqual(m.switches, s.switches);
   assert.deepEqual(m.brands, s.brands);
   assert.deepEqual(m.activities, []);
   assert.deepEqual(m.activityKinds, DEFAULT_ACTIVITY_KINDS);
+  assert.deepEqual(m.dayNotes, []);
 });
 
-test("v2 activities and kinds survive a save/load round trip", () => {
+test("migrating v2 data keeps activities and adds an empty note list", () => {
   const s = seedState();
   toggleActivity(s, { date: "2026-09-02", kind: "Swimming" });
   removeActivityKind(s, "Sauna");
+  const v2 = { ...structuredClone(s), version: 2 };
+  delete v2.dayNotes;
+  const m = migrate(v2);
+  assert.equal(m.version, 3);
+  assert.deepEqual(m.activities, s.activities);
+  assert.deepEqual(m.activityKinds, s.activityKinds);
+  assert.deepEqual(m.dayNotes, []);
+});
+
+test("activities, kinds and notes survive a save/load round trip", () => {
+  const s = seedState();
+  toggleActivity(s, { date: "2026-09-02", kind: "Swimming" });
+  setDayNote(s, { date: "2026-09-02", text: "Chlorine, stung a bit" });
+  removeActivityKind(s, "Sauna");
   const m = migrate(JSON.parse(JSON.stringify(s)));
   assert.deepEqual(m.activities, s.activities);
+  assert.deepEqual(m.dayNotes, s.dayNotes);
   assert.ok(!m.activityKinds.includes("Sauna"));
   s.activityKinds = [];
   assert.deepEqual(migrate(s).activityKinds, []);
@@ -289,7 +306,8 @@ test("validate catches broken references and dates", () => {
   const bad = structuredClone(s);
   bad.switches.push({ id: "x", date: "2026-13-01", eye: "L", lensId: "missing", seq: 99 });
   bad.activities.push({ id: "y", date: "2026-09-31", kind: " " });
-  assert.equal(validate(bad).length, 4);
+  bad.dayNotes.push({ id: "z", date: "yesterday", text: "x" });
+  assert.equal(validate(bad).length, 5);
 });
 
 test("addBrand dedupes case-insensitively", () => {
@@ -354,4 +372,33 @@ test("activity kinds dedupe, and removing a kind keeps what was logged", () => {
   removeActivityKind(s, "Hot yoga");
   assert.ok(!s.activityKinds.includes("Hot yoga"));
   assert.equal(s.activities.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Day notes
+// ---------------------------------------------------------------------------
+
+test("setDayNote keeps one note per day; empty text removes it", () => {
+  const s = seedState();
+  assert.deepEqual(setDayNote(s, { date: "2026-09-02", text: "  Red eyes  " }), { saved: "saved" });
+  assert.equal(noteOn(s.dayNotes, "2026-09-02"), "Red eyes");
+  assert.deepEqual(setDayNote(s, { date: "2026-09-02", text: "Red eyes" }), { saved: "unchanged" });
+  setDayNote(s, { date: "2026-09-02", text: "Red eyes after the pool" });
+  assert.equal(s.dayNotes.length, 1);
+  assert.equal(noteOn(s.dayNotes, "2026-09-02"), "Red eyes after the pool");
+  assert.deepEqual(setDayNote(s, { date: "2026-09-02", text: " " }), { saved: "removed" });
+  assert.equal(noteOn(s.dayNotes, "2026-09-02"), "");
+  assert.deepEqual(setDayNote(s, { date: "2026-09-03", text: "" }), { saved: "unchanged" });
+  assert.throws(() => setDayNote(s, { date: "2026-02-30", text: "x" }), /valid date/);
+});
+
+test("notesDuring lists notes within the lens's life, rest days included, oldest first", () => {
+  // Left monthly: opened Sep 1, resting Sep 10–12, still open. Daily: Sep 10–12.
+  const { s, monthly, daily } = scenario();
+  for (const [date, text] of [["2026-09-14", "c"], ["2026-08-31", "before"], ["2026-09-11", "b"], ["2026-09-01", "a"]]) {
+    setDayNote(s, { date, text });
+  }
+  const today = "2026-09-20";
+  assert.deepEqual(notesDuring(monthly, s.dayNotes, today).map((n) => n.text), ["a", "b", "c"]);
+  assert.deepEqual(notesDuring(daily, s.dayNotes, today).map((n) => n.text), ["b"]);
 });

@@ -195,3 +195,26 @@ export function addActivityKind(state, name) {
 export function removeActivityKind(state, name) {
   state.activityKinds = state.activityKinds.filter((k) => k !== name);
 }
+
+// ---------------------------------------------------------------------------
+// Day notes (one per date, both eyes)
+// ---------------------------------------------------------------------------
+
+/** Set the note for `date`; empty text removes it. Returns { saved: "saved" | "removed" | "unchanged" }. */
+export function setDayNote(state, { date, text }) {
+  assertDate(date);
+  const clean = (text ?? "").trim();
+  const existing = state.dayNotes.find((n) => n.date === date);
+  if (!clean) {
+    if (!existing) return { saved: "unchanged" };
+    state.dayNotes = state.dayNotes.filter((n) => n.date !== date);
+    return { saved: "removed" };
+  }
+  if (existing) {
+    if (existing.text === clean) return { saved: "unchanged" };
+    existing.text = clean;
+  } else {
+    state.dayNotes.push({ id: makeId(), date, text: clean });
+  }
+  return { saved: "saved" };
+}

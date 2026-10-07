@@ -544,6 +544,9 @@ body.has-sheet .tabbar {
 .action-dot.is-daily { background: var(--daily); }
 .action-dot.is-none { background: transparent; border: 2px solid var(--text-dim); }
 .action-dot.is-discard { background: var(--danger); }
+.action-dot.is-note { background: transparent; border: 2px dashed var(--text-dim); }
+/* One-line preview of a day note in rows. */
+.note-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .action-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .action-title { font-weight: var(--fw-semibold); }
 .action-sub { font-size: var(--fs-sm); color: var(--text-dim); }
@@ -776,6 +779,7 @@ body.has-sheet .tabbar {
   color: var(--text-dim);
   white-space: pre-wrap;
 }
+.day-note-date { color: var(--text); font-weight: var(--fw-semibold); margin-right: var(--space-1); }
 .eye-badge {
   display: inline-grid;
   place-items: center;

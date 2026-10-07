@@ -1,22 +1,24 @@
-// Bottom sheet for logging activities (both eyes) on a day. Tapping a chip
-// logs or removes it right away; the sheet stays open for more.
+// Bottom sheet for logging activities and the day note (both eyes) on a day.
+// Tapping a chip logs or removes it right away; the sheet stays open for more.
 
 import * as store from "../store.js";
-import { activitiesOn } from "../calc.js";
+import { activitiesOn, noteOn } from "../calc.js";
 import { todayISO, formatRelative } from "../dates.js";
 import { toggleActivity, addActivityKind } from "../actions.js";
 import { openSheet } from "./sheet.js";
 import { showToast, showError } from "./toast.js";
 import { esc, dateChip, ICONS } from "./dom.js";
+import { dayNoteField, saveDayNote } from "./day-note.js";
 
 export function openActivitySheet() {
-  const ui = { date: todayISO(), adding: false };
+  // draft: unsaved note text, kept while chips re-render the sheet.
+  const ui = { date: todayISO(), adding: false, draft: null };
   openSheet((sheet) => {
     const render = () => view(sheet, ui, render);
     // Repaint after an Undo from the toast; stop listening once the sheet is gone.
     const unsubscribe = store.subscribe(() => (sheet.body.isConnected ? render() : unsubscribe()));
     render();
-  }, { label: "Activities" });
+  }, { label: "Activities and note" });
 }
 
 function view(sheet, ui, render) {
@@ -29,8 +31,8 @@ function view(sheet, ui, render) {
   sheet.setContent(`
     <div class="sheet-head">
       <div class="sheet-head-text">
-        <h2 class="sheet-title">Activities</h2>
-        <p class="sheet-sub muted">Both eyes · counts for the lenses worn that day</p>
+        <h2 class="sheet-title">Activities &amp; note</h2>
+        <p class="sheet-sub muted">Both eyes · count for the lenses worn that day</p>
       </div>
     </div>
     <div class="sheet-row">${dateChip(ui.date, formatRelative(ui.date, today), today)}</div>
@@ -44,6 +46,7 @@ function view(sheet, ui, render) {
         <input class="input" name="kind" placeholder="Activity name" autocomplete="off" autocapitalize="sentences" enterkeyhint="done">
         <button class="btn" type="submit">Add</button>
       </form>` : ""}
+    ${dayNoteField(ui.draft ?? noteOn(state.dayNotes, ui.date))}
   `);
 
   const body = sheet.body;
@@ -51,8 +54,19 @@ function view(sheet, ui, render) {
 
   body.querySelector(".date-chip-input").onchange = (e) => {
     const v = e.target.value;
+    // Don't lose typed text: save it to the day it was written for.
+    const draft = ui.draft;
+    ui.draft = null;
+    if (draft !== null && draft.trim() !== noteOn(store.getState().dayNotes, ui.date)) saveDayNote(ui.date, draft);
     ui.date = v && v <= today ? v : today;
     render();
+  };
+  const note = body.querySelector("[name=day-note]");
+  note.oninput = () => { ui.draft = note.value; };
+  body.querySelector("[data-save-note]").onclick = () => {
+    const text = note.value;
+    ui.draft = null;
+    if (!saveDayNote(ui.date, text)) { ui.draft = text; render(); }
   };
   body.querySelector("[data-kinds]").onclick = (e) => {
     if (e.target.closest("[data-add]")) {

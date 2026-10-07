@@ -1,6 +1,6 @@
 // Now screen: one card per eye with a progress ring.
 
-import { eyeStatus, lensSummary, activitiesOn } from "../calc.js";
+import { eyeStatus, lensSummary, activitiesOn, noteOn } from "../calc.js";
 import { formatShort } from "../dates.js";
 import { esc, ring, plural, ICONS, EYE_NAMES, TYPE_NAMES } from "./dom.js";
 import { openNowSheet } from "./now-sheet.js";
@@ -25,11 +25,13 @@ export function renderNow(el, state, today) {
 
 function activityRow(state, today) {
   const kinds = activitiesOn(state.activities, today);
+  const note = noteOn(state.dayNotes, today);
   return `
     <button type="button" class="action-row activity-row" data-activities>
       <span class="action-text">
-        <span class="action-title">Activities today</span>
-        <span class="action-sub">${kinds.length ? esc(kinds.join(" · ")) : "Nothing logged · tap to add"}</span>
+        <span class="action-title">Today</span>
+        <span class="action-sub">${kinds.length ? esc(kinds.join(" · ")) : "No activities"}${note ? "" : " · tap to add activities or a note"}</span>
+        ${note ? `<span class="action-sub note-preview">“${esc(note)}”</span>` : ""}
       </span>
       ${ICONS.chevron}
     </button>`;

@@ -1,12 +1,14 @@
-// Bottom sheet opened from a Now card: switch, open, remove or discard lenses.
+// Bottom sheet opened from a Now card: switch, open, remove or discard lenses,
+// and write the note for the chosen day.
 
 import * as store from "../store.js";
-import { eyeStatus, lensSummary, REASONS, COMFORT_LABELS } from "../calc.js";
+import { eyeStatus, lensSummary, noteOn, REASONS, COMFORT_LABELS } from "../calc.js";
 import { todayISO, formatRelative } from "../dates.js";
 import { openLens, switchTo, discardLens, addBrand } from "../actions.js";
 import { openSheet } from "./sheet.js";
 import { showToast, showError } from "./toast.js";
 import { esc, dateChip, comfortField, bindComfort, ICONS, EYE_NAMES, TYPE_NAMES } from "./dom.js";
+import { dayNoteField, saveDayNote } from "./day-note.js";
 
 const OTHER = { L: "R", R: "L" };
 
@@ -74,7 +76,7 @@ function run(sheet, ui, perEye, describe) {
 // Views
 // ---------------------------------------------------------------------------
 
-const VIEWS = { main: mainView, brand: brandView, discard: discardView };
+const VIEWS = { main: mainView, brand: brandView, discard: discardView, note: noteView };
 
 function mainView(sheet, ui) {
   const state = store.getState();
@@ -138,6 +140,16 @@ function mainView(sheet, ui) {
           ${ICONS.chevron}
         </button>`).join("")}
     </div>
+    <div class="action-list">
+      <button type="button" class="action-row" data-note>
+        <span class="action-dot is-note"></span>
+        <span class="action-text">
+          <span class="action-title">Note · ${esc(formatRelative(ui.date, today))}</span>
+          <span class="action-sub note-preview">${esc(noteOn(state.dayNotes, ui.date) || "Add a note for this day")}</span>
+        </span>
+        ${ICONS.chevron}
+      </button>
+    </div>
   `);
 
   const body = sheet.body;
@@ -149,6 +161,11 @@ function mainView(sheet, ui) {
     const v = e.target.value;
     ui.date = v && v <= today ? v : today;
     ui.render();
+  };
+  body.querySelector("[data-note]").onclick = () => {
+    ui.view = "note";
+    ui.render();
+    sheet.body.querySelector("[name=day-note]").focus();
   };
   body.querySelector(".action-list").onclick = (e) => {
     const btn = e.target.closest("[data-action]");
@@ -254,6 +271,25 @@ function brandView(sheet, ui) {
   }
   body.querySelector("[data-confirm]").onclick = () => {
     run(sheet, ui, (draft, eye) => openLens(draft, { eye, type, brand: ui.brand, date: ui.date }), `Opened ${ui.brand}`);
+  };
+}
+
+function noteView(sheet, ui) {
+  const state = store.getState();
+  sheet.setContent(`
+    <div class="sheet-head">
+      <button type="button" class="icon-btn back-btn" data-back aria-label="Back">${ICONS.back}</button>
+      <div class="sheet-head-text">
+        <h2 class="sheet-title">Note</h2>
+        <p class="sheet-sub muted">${esc(formatRelative(ui.date))}</p>
+      </div>
+    </div>
+    ${dayNoteField(noteOn(state.dayNotes, ui.date))}
+  `);
+  const body = sheet.body;
+  body.querySelector("[data-back]").onclick = () => { ui.view = "main"; ui.render(); };
+  body.querySelector("[data-save-note]").onclick = () => {
+    if (saveDayNote(ui.date, body.querySelector("[name=day-note]").value)) sheet.close();
   };
 }
 

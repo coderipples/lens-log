@@ -144,6 +144,19 @@ export function lensActivities(lens, switches, activities, today) {
     .sort((a, b) => b.days - a.days || a.kind.localeCompare(b.kind));
 }
 
+/** The note text for `date`, or "". */
+export function noteOn(dayNotes, date) {
+  return dayNotes.find((n) => n.date === date)?.text ?? "";
+}
+
+/** Day notes dated within the lens's life (worn or resting), oldest first. */
+export function notesDuring(lens, dayNotes, today) {
+  const end = lensEnd(lens, today);
+  return dayNotes
+    .filter((n) => n.date >= lens.openedOn && n.date <= end)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
 // ---------------------------------------------------------------------------
 // Stats
 // ---------------------------------------------------------------------------

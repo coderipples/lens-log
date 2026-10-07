@@ -3,7 +3,7 @@
 import { isValidISO } from "./dates.js";
 
 export const STORAGE_KEY = "lenslog.v1";
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const DEFAULT_ACTIVITY_KINDS = ["Swimming", "Climbing", "Shower", "Sauna", "Screen-heavy", "Dusty / windy"];
 
@@ -16,6 +16,7 @@ export function seedState() {
     defaults: { monthly: "Total30", daily: "Total1" },
     activities: [],
     activityKinds: [...DEFAULT_ACTIVITY_KINDS],
+    dayNotes: [],
     nextSeq: 1,
   };
 }
@@ -35,6 +36,11 @@ export function migrate(raw) {
     s.activityKinds = [...DEFAULT_ACTIVITY_KINDS];
     s.version = 2;
   }
+  if (s.version === 2) {
+    // v3: one free-text note per day (both eyes).
+    s.dayNotes = [];
+    s.version = 3;
+  }
   return normalize(s);
 }
 
@@ -53,6 +59,7 @@ function normalize(s) {
     activities: Array.isArray(s.activities) ? s.activities : [],
     // An empty list is a valid choice here, unlike brands.
     activityKinds: Array.isArray(s.activityKinds) ? s.activityKinds : seed.activityKinds,
+    dayNotes: Array.isArray(s.dayNotes) ? s.dayNotes : [],
     nextSeq: 1,
   };
   for (const type of ["monthly", "daily"]) {
@@ -71,6 +78,7 @@ function normalize(s) {
     note: l.note ?? "",
   }));
   out.activities = out.activities.map((a) => ({ id: a.id, date: a.date, kind: a.kind }));
+  out.dayNotes = out.dayNotes.map((n) => ({ id: n.id, date: n.date, text: n.text ?? "" }));
   let maxSeq = 0;
   out.switches = out.switches.map((sw, i) => {
     const seq = Number.isFinite(sw.seq) ? sw.seq : i + 1;
@@ -105,6 +113,9 @@ export function validate(s) {
   for (const a of s.activities) {
     if (!isValidISO(a.date)) errors.push(`Activity ${a.id ?? "?"}: invalid date`);
     if (typeof a.kind !== "string" || !a.kind.trim()) errors.push(`Activity ${a.id ?? "?"}: missing kind`);
+  }
+  for (const n of s.dayNotes) {
+    if (!isValidISO(n.date)) errors.push(`Note ${n.id ?? "?"}: invalid date`);
   }
   return errors;
 }

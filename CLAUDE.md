@@ -26,8 +26,8 @@ Keep date and stats logic in `dates.js` and `calc.js`, and cover changes to them
 ## Data
 
 - One localStorage key, `lenslog.v1`, holding
-  `{ version, lenses, switches, brands: {monthly, daily}, defaults: {monthly, daily}, activities, activityKinds, nextSeq }`
-  (schema version 2).
+  `{ version, lenses, switches, brands: {monthly, daily}, defaults: {monthly, daily}, activities, activityKinds, dayNotes, nextSeq }`
+  (schema version 3).
 - Schema changes: bump `version` and add a step to `migrate()` in `store.js`. Never silently drop data.
 - Lens: `{ id, eye: "L"|"R", type: "monthly"|"daily", brand, openedOn, discardedOn, discardReason, comfort, note }`
 - Switch: `{ id, date, eye, lensId | null, seq }`. `null` means no lens. `seq` orders switches on the same day.
@@ -36,6 +36,8 @@ Keep date and stats logic in `dates.js` and `calc.js`, and cover changes to them
 - Activity: `{ id, date, kind }`, for both eyes, at most one per kind per day. It is never linked to a lens directly:
   it counts for each lens that was worn (active) on that date, so it can be logged retroactively.
   `activityKinds` is the picker list; removing a kind keeps the activities already logged with it.
+- Day note: `{ id, date, text }`, for both eyes, at most one per day (empty text removes it). History shows it
+  under every lens whose life (worn or resting) includes that date. Separate from a lens's own `note`.
 
 ## Date rules
 
